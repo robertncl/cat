@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createCat, FURS } from './cat.js';
 import { CatController, ACTIONS } from './behavior.js';
 import { CatAudio } from './audio.js';
@@ -17,11 +18,14 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(BG);
 scene.fog = new THREE.Fog(BG, 16, 30);
 
-const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
-camera.position.set(0, 4.6, 7.8);
-camera.lookAt(0, 0.3, 0);
+const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
+const CAMERA_OFFSET = new THREE.Vector3(0, 2.0, 4.6); // from the point the camera watches
+const focus = new THREE.Vector3(0, 0.3, 0);
 
-scene.add(new THREE.HemisphereLight('#fff6ea', '#b9a58c', 1.5));
+// Soft room light for the fur and the reflections in the eyes, plus a sun for shadows.
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.55;
+scene.add(new THREE.HemisphereLight('#fff6ea', '#b9a58c', 0.7));
 const sun = new THREE.DirectionalLight('#fff1dc', 2.2);
 sun.position.set(5, 10, 6);
 sun.castShadow = true;
@@ -135,6 +139,7 @@ window.addEventListener('keydown', (e) => {
 // ---------- Pointer ----------
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
+let pointerSeen = false;
 const floor = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const hitPoint = new THREE.Vector3();
 
@@ -144,7 +149,12 @@ function aim(e) {
 }
 
 function updateTarget(e) {
-  aim(e);
+  if (e) {
+    aim(e);
+    pointerSeen = true;
+  } else {
+    raycaster.setFromCamera(ndc, camera); // the camera moved under a resting pointer
+  }
   if (!raycaster.ray.intersectPlane(floor, hitPoint)) return;
   const d = Math.hypot(hitPoint.x, hitPoint.z);
   if (d > ROOM_RADIUS) hitPoint.multiplyScalar(ROOM_RADIUS / d);
@@ -156,7 +166,7 @@ canvas.addEventListener('pointermove', updateTarget);
 canvas.addEventListener('pointerdown', (e) => {
   audio.unlock();
   aim(e);
-  if (raycaster.intersectObject(cat.root, true).length) {
+  if (cat.hit(raycaster.ray)) {
     controller.do('purr'); // petting
     for (let i = 0; i < 3; i++) setTimeout(() => heart(e.clientX + (Math.random() - 0.5) * 50, e.clientY), i * 160);
   } else {
@@ -181,16 +191,24 @@ function resize() {
   const h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
-  camera.fov = w < h ? 58 : 40; // widen the view on portrait screens
+  camera.fov = w < h ? 52 : 34; // widen the view on portrait screens
   camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', resize);
 resize();
 
 const clock = new THREE.Clock();
+const tmp = new THREE.Vector3();
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05);
   controller.update(dt, clock.elapsedTime);
+
+  // The camera drifts after the cat so it stays close enough to see.
+  tmp.copy(cat.root.position).multiplyScalar(0.5).setY(0.3);
+  focus.lerp(tmp, 1 - Math.exp(-dt * 2));
+  camera.position.copy(focus).add(CAMERA_OFFSET);
+  camera.lookAt(focus);
+  if (pointerSeen) updateTarget();
   renderer.render(scene, camera);
 });
 
