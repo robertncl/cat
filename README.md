@@ -1,6 +1,13 @@
 # Cat Simulator
 
-A browser-based 3D cat built with [Three.js](https://threejs.org/). The cat follows your pointer, comes when you call it, purrs when you pet it, and can sit, loaf, sleep, groom, pounce and more. Its sounds are generated with the Web Audio API, so the project has no audio files.
+A browser-based 3D cat built with [Three.js](https://threejs.org/). The cat follows your pointer, comes when you call it, purrs when you pet it, and can sit, loaf, sleep, groom, pounce and more.
+
+Everything is generated in code, so the project has no model, texture or audio files:
+
+- **Body:** one seamless skinned mesh, built at startup from soft-blended shapes and moved by a skeleton.
+- **Fur:** shell-rendered strands that lie along the body, with tabby stripes, calico patches and other markings painted per coat.
+- **Movement:** feet are planted on the floor with inverse kinematics. The cat walks with a four-beat gait and gallops when it runs, and the spine, head and tail follow through.
+- **Sound:** meows and purrs are synthesised with the Web Audio API.
 
 There is no build step and nothing to install. The app is plain HTML, CSS and ES modules, and Three.js is loaded from a CDN through an import map.
 
@@ -8,7 +15,7 @@ There is no build step and nothing to install. The app is plain HTML, CSS and ES
 
 ### Requirements
 
-- A modern browser with WebGL and ES module support (current Chrome, Firefox, Safari or Edge)
+- A modern browser with WebGL 2 and ES module support (current Chrome, Firefox, Safari or Edge)
 - Any static file server (examples below)
 - An internet connection the first time you load the page, to fetch Three.js from `cdn.jsdelivr.net`
 
@@ -35,7 +42,7 @@ The VS Code **Live Server** extension also works: right-click `index.html` and c
 
 | Input | What it does |
 | --- | --- |
-| Move the pointer | The cat follows it (turn this off with **Follow pointer**) |
+| Move the pointer | The cat follows it, and the camera drifts after the cat (turn following off with **Follow pointer**) |
 | Click the floor | Calls the cat to that spot |
 | Click the cat | Pets it (it purrs) |
 | `Space` | Gets the cat up and following you again |
@@ -63,8 +70,10 @@ Browsers only allow audio after you interact with the page, so the cat stays sil
 index.html       Page layout, UI panels and the Three.js import map
 style.css        UI styling
 src/main.js      Scene, camera, lighting, UI wiring and input handling
-src/cat.js       Cat 3D model and fur presets
-src/behavior.js  Poses, actions and movement (the cat's state machine)
+src/cat.js       Cat anatomy: skeleton, body shape, skin weights, coat colours and face
+src/sdf.js       Turns the body's blended shapes into a mesh (signed distance field + surface nets)
+src/fur.js       Fur, skin and eye shaders
+src/behavior.js  Poses, actions, gait and leg IK (the cat's state machine)
 src/audio.js     Synthesised meow and purr sounds
 ```
 
