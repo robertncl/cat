@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cat Simulator</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+  </script>
+</head>
+<body>
+  <canvas id="scene" aria-label="3D scene with a cat that follows your pointer"></canvas>
+
+  <header class="panel top-left">
+    <h1>Cat Simulator</h1>
+    <p id="status" role="status">Standing</p>
+    <p class="hint">Move the pointer and the cat follows. Click the floor to call it, click the cat to pet it.</p>
+  </header>
+
+  <section class="panel top-right" aria-label="Fur colour">
+    <h2>Fur</h2>
+    <div id="furs" class="furs"></div>
+    <p id="fur-name" class="fur-name"></p>
+  </section>
+
+  <nav class="panel bottom" aria-label="Cat actions">
+    <div id="actions" class="actions"></div>
+    <div class="toggles">
+      <button id="follow" type="button" aria-pressed="true">Follow pointer</button>
+      <button id="sound" type="button" aria-pressed="true">Sound</button>
+    </div>
+  </nav>
+
+  <p id="error" class="error" hidden></p>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
