@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { LightProbeGenerator } from 'three/addons/lights/LightProbeGenerator.js';
 import { createCat, FURS } from './cat.js';
 import { CatController, ACTIONS } from './behavior.js';
 import { CatAudio } from './audio.js';
@@ -9,7 +10,7 @@ const BG = '#f3e9dc';
 const ROOM_RADIUS = 9; // how far from the centre the cat may wander
 
 // ---------- Scene ----------
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -23,16 +24,19 @@ const CAMERA_OFFSET = new THREE.Vector3(0, 2.0, 4.6); // from the point the came
 const focus = new THREE.Vector3(0, 0.3, 0);
 
 // Soft room light for the fur and the reflections in the eyes, plus a sun for shadows.
-scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+const room = new RoomEnvironment();
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(room, 0.04).texture;
 scene.environmentIntensity = 0.55;
 scene.add(new THREE.HemisphereLight('#fff6ea', '#b9a58c', 0.7));
 const sun = new THREE.DirectionalLight('#fff1dc', 2.2);
-sun.position.set(5, 10, 6);
+const SUN_OFFSET = new THREE.Vector3(5, 10, 6); // from the cat, which the sun follows
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 1, far: 30 });
+// The shadow map covers just the cat, the only thing casting one. Floor outside it skips the
+// soft-shadow lookups, which otherwise cost more than anything else drawn on the floor.
+sun.shadow.mapSize.set(512, 512);
+Object.assign(sun.shadow.camera, { left: -1.4, right: 1.4, top: 1.4, bottom: -1.4, near: 1, far: 30 });
 sun.shadow.bias = -0.0005;
-scene.add(sun);
+scene.add(sun, sun.target);
 
 const flat = (geo, color, y) => {
   const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 1 }));
@@ -42,7 +46,7 @@ const flat = (geo, color, y) => {
   scene.add(m);
   return m;
 };
-flat(new THREE.CircleGeometry(40, 64), '#d8c4a4', 0);
+flat(new THREE.RingGeometry(5, 40, 64), '#d8c4a4', 0.004); // a ring level with the rug, so the floor under it is not shaded twice
 flat(new THREE.CircleGeometry(5, 64), '#8fb0aa', 0.004);
 flat(new THREE.RingGeometry(4.3, 4.55, 64), '#f1e6d2', 0.008);
 
@@ -58,6 +62,16 @@ scene.add(dot);
 // ---------- Cat ----------
 const cat = createCat();
 scene.add(cat.root);
+
+// The fur is lit by the same room, boiled down to spherical harmonics (see fur.js).
+{
+  const cube = new THREE.WebGLCubeRenderTarget(64, { type: THREE.HalfFloatType, colorSpace: THREE.LinearSRGBColorSpace });
+  new THREE.CubeCamera(0.1, 100, cube).update(renderer, room);
+  const probe = await LightProbeGenerator.fromCubeRenderTarget(renderer, cube);
+  cat.fur.uRoomLight.value = probe.sh.scale(scene.environmentIntensity).coefficients;
+  cube.dispose();
+}
+
 const audio = new CatAudio();
 const controller = new CatController(cat, audio);
 
@@ -209,6 +223,12 @@ renderer.setAnimationLoop(() => {
   camera.position.copy(focus).add(CAMERA_OFFSET);
   camera.lookAt(focus);
   if (pointerSeen) updateTarget();
+
+  // The sun's shadow map and the fur's level of detail both follow the cat.
+  sun.target.position.setFromMatrixPosition(cat.spine.matrixWorld);
+  sun.position.copy(sun.target.position).add(SUN_OFFSET);
+  const pixelsPerMetre = canvas.height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.position.distanceTo(sun.target.position));
+  cat.setFurDetail(pixelsPerMetre);
   renderer.render(scene, camera);
 });
 
