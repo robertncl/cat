@@ -3,7 +3,7 @@ import * as THREE from 'three';
 // Shell fur: the coat mesh is drawn many times, each copy pushed a little further
 // out along the surface normal, keeping only the pixels that fall inside a strand.
 
-export const FUR_SHELLS = 28;
+export const FUR_SHELLS = 28; // the most layers drawn, when the cat fills the screen
 
 export function createFurMaterial() {
   const uniforms = {
@@ -11,6 +11,7 @@ export function createFurMaterial() {
     uFurLength: { value: 0.021 },
     uDensity: { value: 400 },
     uWind: { value: new THREE.Vector3() }, // extra bend from the cat's own motion
+    uRoomLight: { value: Array.from({ length: 9 }, () => new THREE.Vector3()) }, // the room's light, as spherical harmonics
   };
   const material = new THREE.MeshPhysicalMaterial({
     vertexColors: true,
@@ -44,6 +45,7 @@ export function createFurMaterial() {
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
         uniform float uDensity;
+        uniform vec3 uRoomLight[9];
         varying float vShell;
         varying vec3 vFurP;
         float furHash(vec3 p) {
@@ -59,7 +61,15 @@ export function createFurMaterial() {
         float furH = vShell / mix(0.5, 1.0, furRnd); // 0 at the root of this strand, 1 at its tip
         if (furH > 1.0 || length(fract(furQ) - 0.5 - furJitter * 0.4) > 0.78 * (1.0 - 0.85 * furH)) discard;
         // Roots sit in shadow; each strand is a slightly different shade.
-        diffuseColor.rgb *= mix(0.38, 1.0, vShell) * mix(0.8, 1.14, furRnd);`);
+        diffuseColor.rgb *= mix(0.38, 1.0, vShell) * mix(0.8, 1.14, furRnd);`)
+      // The room's light comes from nine colours rather than environment-map lookups. The fur is too
+      // rough to show the difference, and the lookups were a large part of the cost of shading every shell.
+      .replace('#include <lights_fragment_maps>', `
+        vec3 furUp = inverseTransformDirection(geometryNormal, viewMatrix);
+        vec3 furMirror = reflect(-geometryViewDir, geometryNormal);
+        furMirror = inverseTransformDirection(normalize(mix(furMirror, geometryNormal, material.roughness * material.roughness)), viewMatrix);
+        iblIrradiance += shGetIrradianceAt(furUp, uRoomLight);
+        radiance += shGetIrradianceAt(furMirror, uRoomLight) * RECIPROCAL_PI;`);
   };
   material.userData.uniforms = uniforms;
   return material;

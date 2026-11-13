@@ -22,6 +22,7 @@ export const FURS = [
 
 export const TAIL_SEGMENTS = 8;
 const CELL = 0.009; // meshing resolution
+const MIN_SHELLS = 14; // fewest fur layers, for when the cat is small on screen
 const S = 0.088; // legs sit this far either side of the centre line
 
 const HEAD_SCALE = 1.1;
@@ -403,8 +404,19 @@ export function createCat() {
   }
   setFur(FURS[0]);
 
+  /**
+   * Draw only as many fur shells as the screen can tell apart: about three for every two pixels
+   * of fur length. `pixelsPerMetre` is the cat's scale on screen.
+   */
+  function setFurDetail(pixelsPerMetre) {
+    const uniforms = furMaterial.userData.uniforms;
+    const wanted = Math.min(FUR_SHELLS, Math.max(MIN_SHELLS, uniforms.uFurLength.value * pixelsPerMetre * 1.6));
+    if (Math.abs(wanted - shells.instanceCount) < 2) return; // ignore small changes, so the count does not flicker
+    shells.instanceCount = uniforms.uShells.value = Math.round(wanted);
+  }
+
   return {
-    root, hips, spine, chest, neck, head, ears, tail, legs, lids, mouth, probes, hit, setFur,
+    root, hips, spine, chest, neck, head, ears, tail, legs, lids, mouth, probes, hit, setFur, setFurDetail,
     rest: { hips: hips.position.clone(), mouth: mouth.position.clone() },
     eye: mats.eye.userData.uniforms,
     fur: furMaterial.userData.uniforms,
